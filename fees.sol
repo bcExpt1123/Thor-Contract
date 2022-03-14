@@ -2,6 +2,8 @@
 
 pragma solidity ^0.8.12;
 
+import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+
 library SafeMath {
     /**
      * @dev Returns the addition of two unsigned integers, with an overflow flag.
@@ -9,9 +11,9 @@ library SafeMath {
      * _Available since v3.4._
      */
     function tryAdd(uint256 a, uint256 b)
-    internal
-    pure
-    returns (bool, uint256)
+        internal
+        pure
+        returns (bool, uint256)
     {
         uint256 c = a + b;
         if (c < a) return (false, 0);
@@ -24,9 +26,9 @@ library SafeMath {
      * _Available since v3.4._
      */
     function trySub(uint256 a, uint256 b)
-    internal
-    pure
-    returns (bool, uint256)
+        internal
+        pure
+        returns (bool, uint256)
     {
         if (b > a) return (false, 0);
         return (true, a - b);
@@ -38,9 +40,9 @@ library SafeMath {
      * _Available since v3.4._
      */
     function tryMul(uint256 a, uint256 b)
-    internal
-    pure
-    returns (bool, uint256)
+        internal
+        pure
+        returns (bool, uint256)
     {
         // Gas optimization: this is cheaper than requiring 'a' not being zero, but the
         // benefit is lost if 'b' is also tested.
@@ -57,9 +59,9 @@ library SafeMath {
      * _Available since v3.4._
      */
     function tryDiv(uint256 a, uint256 b)
-    internal
-    pure
-    returns (bool, uint256)
+        internal
+        pure
+        returns (bool, uint256)
     {
         if (b == 0) return (false, 0);
         return (true, a / b);
@@ -71,9 +73,9 @@ library SafeMath {
      * _Available since v3.4._
      */
     function tryMod(uint256 a, uint256 b)
-    internal
-    pure
-    returns (bool, uint256)
+        internal
+        pure
+        returns (bool, uint256)
     {
         if (b == 0) return (false, 0);
         return (true, a % b);
@@ -234,6 +236,7 @@ library SafeMath {
 
 contract MasterOfCoin {
     using SafeMath for uint256;
+    AggregatorV3Interface internal priceFeed;
 
     mapping(string => uint256) public dueDates;
     uint256 baseDueDate;
@@ -268,6 +271,21 @@ contract MasterOfCoin {
         owner = msg.sender;
         baseDueDate = block.timestamp + feeCycle;
         bifrost = _bifrost;
+        priceFeed = AggregatorV3Interface(
+            0x0A77230d17318075983913bC2145DB16C7366156
+        );
+    }
+
+    function _getCurrentPrice() internal view returns (uint256) {
+        (
+            ,
+            /*uint80 roundID*/
+            int256 price,
+            ,
+            ,
+
+        ) = priceFeed.latestRoundData();
+        return uint256(price);
     }
 
     function blockTime() external view returns (uint256) {
@@ -281,8 +299,8 @@ contract MasterOfCoin {
     function _payFee(string memory nodeId) internal {
         require(!_isDelinquent(nodeId), "Node has expired, pay restore fee");
         dueDates[nodeId] = dueDates[nodeId] != 0
-        ? uint256(dueDates[nodeId]).add(feeCycle)
-        : baseDueDate.add(feeCycle);
+            ? uint256(dueDates[nodeId]).add(feeCycle)
+            : baseDueDate.add(feeCycle);
     }
 
     function payFee(string memory nodeId) external onlyBifrost {
@@ -290,21 +308,27 @@ contract MasterOfCoin {
     }
 
     function payFee(string memory nodeId, string memory tierName)
-    external
-    payable
+        external
+        payable
     {
         NodeTier memory tier = tiers[tierName];
-        require(msg.value >= tier.fee, "Amount less than fee");
+        require(
+            msg.value >= ((tier.fee * 10**8 * 10**18) / _getCurrentPrice()),
+            "Amount less than fee"
+        );
         _payFee(nodeId);
     }
 
     function payFees(string[] memory nodeIds, string memory tierName)
-    external
-    payable
+        external
+        payable
     {
         NodeTier memory tier = tiers[tierName];
         require(
-            msg.value >= nodeIds.length.mul(tier.fee),
+            msg.value >=
+                nodeIds.length.mul(
+                    (tier.fee * 10**8 * 10**18) / _getCurrentPrice()
+                ),
             "Amount less than fee"
         );
         for (uint256 i = 0; i < nodeIds.length; i++) {
@@ -313,24 +337,24 @@ contract MasterOfCoin {
     }
 
     function _calcRestoreFee(string memory nodeId, string memory tierName)
-    internal
-    view
-    returns (uint256)
+        internal
+        view
+        returns (uint256)
     {
         NodeTier memory tier = tiers[tierName];
 
         uint256 dueDate = dueDates[nodeId] > 0 ? dueDates[nodeId] : baseDueDate;
         uint256 missedFees = uint256(block.timestamp - dueDate)
-        .div(feeCycle)
-        .mul(tier.fee);
+            .div(feeCycle)
+            .mul((tier.fee * 10**8 * 10**18) / _getCurrentPrice());
 
         return tier.restoreFee + missedFees;
     }
 
     function restoreNode(string memory nodeId, string memory tierName)
-    external
-    payable
-    onlyBifrost
+        external
+        payable
+        onlyBifrost
     {
         uint256 totalFee = _calcRestoreFee(nodeId, tierName);
 
@@ -352,8 +376,8 @@ contract MasterOfCoin {
 
     function _isDelinquent(string memory nodeId) internal view returns (bool) {
         uint256 dueDate = dueDates[nodeId] != 0
-        ? dueDates[nodeId]
-        : baseDueDate;
+            ? dueDates[nodeId]
+            : baseDueDate;
 
         return block.timestamp > dueDate;
     }
@@ -363,9 +387,9 @@ contract MasterOfCoin {
     }
 
     function getFee(string memory nodeId, string memory tierName)
-    public
-    view
-    returns (uint256)
+        public
+        view
+        returns (uint256)
     {
         if (_isDelinquent(nodeId)) {
             return _calcRestoreFee(nodeId, tierName);
