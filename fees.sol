@@ -267,13 +267,12 @@ contract MasterOfCoin {
         _;
     }
 
-    constructor(address _bifrost) {
+    constructor(address _bifrost, address _aggregator) {
         owner = msg.sender;
         baseDueDate = block.timestamp + feeCycle;
         bifrost = _bifrost;
-        priceFeed = AggregatorV3Interface(
-            0x0A77230d17318075983913bC2145DB16C7366156
-        );
+        priceFeed = AggregatorV3Interface(_aggregator);
+        //0x0A77230d17318075983913bC2145DB16C7366156 AVAX aggregator
     }
 
     function _getCurrentPrice() internal view returns (uint256) {
