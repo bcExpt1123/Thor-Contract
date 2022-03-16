@@ -263,6 +263,26 @@ contract MasterOfCoin {
     address collector = 0x8e2ff009Df7D3611efAF1AAE63A05020669fdCF8;
     // address MaterOfCoinV1 = 0x8748feb50b6713ae0aa08314567f5bad962e96ac;
 
+    // Events
+    event AddedTier(
+        string name,
+        uint256 fee,
+        uint256 restoreFee
+    );
+
+    event RemovedTier(
+        string name
+    );
+
+    event SetAggregator(
+        address _aggregator
+    );
+
+    event PaidFee(
+        string nodeId,
+        uint256 dueDate
+    );
+
     // M O D I F I E R S
     modifier onlyOwner() {
         require(msg.sender == owner, "Fuck off");
@@ -298,6 +318,7 @@ contract MasterOfCoin {
 
     function setAggregator(address _aggregator) external onlyOwner {
         priceFeed = AggregatorV3Interface(_aggregator);
+        emit SetAggregator(_aggregator);
     }
 
     function blockTime() external view returns (uint256) {
@@ -322,10 +343,12 @@ contract MasterOfCoin {
         require(!_isDelinquent(nodeId), "Node has expired, pay restore fee");
         uint256 currentDueDate = _getDueDate(nodeId);
         dueDates[nodeId] = currentDueDate.add(feeCycle);
+        emit PaidFee(nodeId, dueDates[nodeId]);
     }
 
     function payFee(string memory nodeId) external onlyBifrost {
         dueDates[nodeId] = block.timestamp + feeCycle;
+        emit PaidFee(nodeId, dueDates[nodeId]);
     }
 
     function payFee(string memory nodeId, string memory tierName)
@@ -389,10 +412,12 @@ contract MasterOfCoin {
         uint256 restoreFee
     ) external onlyOwner {
         tiers[name] = NodeTier({name: name, fee: fee, restoreFee: restoreFee});
+        emit AddedTier(name, fee, restoreFee);
     }
 
     function removeTier(string memory name) external onlyOwner {
         delete tiers[name];
+        emit RemovedTier(name);
     }
 
     function _isDelinquent(string memory nodeId) internal view returns (bool) {
