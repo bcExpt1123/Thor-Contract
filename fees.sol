@@ -305,11 +305,11 @@ contract MasterOfCoin {
     }
 
     function _getDueDate(string memory nodeId) internal view returns (uint256) {
-        uint256 v1DueDate = masterOfCoinV1.getDueDate(nodeId);
 
         if (dueDates[nodeId] > 0) {
             return dueDates[nodeId];
         } else {
+            uint256 v1DueDate = masterOfCoinV1.getDueDate(nodeId);
             return v1DueDate != v1BaseDueDate ? v1DueDate : baseDueDate;
         }
     }
